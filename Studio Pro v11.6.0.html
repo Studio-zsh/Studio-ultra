@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#f5f7fb">
+<title>studioUltra v13.1.1</title>
+<style>
+/* ==================== 基础与防坑 ==================== */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+  background: var(--bg-color); color: var(--text-color); -webkit-font-smoothing: antialiased;
+  transition: background .3s, color .3s;
+}
+button, input, textarea { touch-action: manipulation; outline: none; }
+button { font-family: inherit; cursor: pointer; user-select: none; border: none; background: none; }
+button:active { transform: scale(.97); }
+
+/* === 深色模式变量 === */
+:root {
+  --bg-color: #f5f7fb; --bg-gradient: linear-gradient(180deg, #eef1f7, #f7f9fc);
+  --text-color: #1f2937; --text-muted: #6b7280;
+  --glass: rgba(255,255,255,.8); --border: rgba(15,23,42,.06);
+  --card-bg: rgba(255,255,255,.85); --card-shadow: 0 4px 18px rgba(15,23,42,.05);
+  --accent: #4f6df5; --blur: blur(15px);
+  --bubble-user: linear-gradient(135deg, #303748, #161b26); --bubble-ai: #fff;
+}
+body.dark {
+  --bg-color: #121212; --bg-gradient: linear-gradient(180deg, #1a1a1a, #121212);
+  --text-color: #e5e7eb; --text-muted: #9ca3af;
+  --glass: rgba(30,30,30,.8); --border: rgba(255,255,255,.08);
+  --card-bg: rgba(30,30,30,.85); --card-shadow: 0 4px 18px rgba(0,0,0,.3);
+  --bubble-user: linear-gradient(135deg, #4f46e5, #312e81); --bubble-ai: #1f2937;
+}
+
+/* === 全屏粒子画布 === */
+#particleCanvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 0; }
+
+/* ==================== 布局骨架 ==================== */
+#app { height: 100dvh; display: flex; position: relative; z-index: 1; background: transparent; }
+#main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.view { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.view.hidden, .hidden { display: none !important; }
+
+/* 侧边栏 */
+#sidebar { display: flex; flex-direction: column; background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border-right: 1px solid var(--border); width: 272px; flex-shrink: 0; z-index: 45; }
+.side-logo { display: flex; align-items: center; gap: 10px; padding: 18px 16px 12px; }
+.logo-mark { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, #5b7cfa, #8b5cf6); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; }
+.side-logo b { font-size: 17px; }
+.side-logo small { display: block; color: var(--text-muted); font-size: 10.5px; }
+.new-chat-btn { margin: 4px 14px 10px; padding: 11px; border-radius: 12px; border: 1px dashed rgba(79,109,245,.5); background: rgba(79,109,245,.07); color: var(--accent); font-weight: 700; font-size: 13.5px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.session-label { padding: 4px 16px 6px; font-size: 11px; color: var(--text-muted); font-weight: 700; }
+.session-list { flex: 1; overflow-y: auto; min-height: 0; padding: 2px 10px 10px; }
+.sess-item { display: flex; align-items: center; gap: 6px; padding: 9px 10px; border-radius: 11px; cursor: pointer; margin-bottom: 2px; border: 1px solid transparent; }
+.sess-item:hover { background: rgba(120,120,128,.1); }
+.sess-item.active { background: rgba(79,109,245,.1); border-color: rgba(79,109,245,.2); }
+.sess-title { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sess-tag { font-size: 9px; background: rgba(0,0,0,.1); padding: 1px 4px; border-radius: 4px; margin-left: 4px; }
+body.dark .sess-tag { background: rgba(255,255,255,.1); }
+.sess-del { opacity: 0; font-size: 12px; padding: 4px; color: #ef4444; }
+.sess-item:hover .sess-del { opacity: 1; }
+.side-nav { border-top: 1px solid var(--border); padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); }
+.side-nav button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 11px; font-size: 13.5px; font-weight: 600; color: var(--text-color); }
+.side-nav button.active { background: rgba(79,109,245,.1); color: var(--accent); }
+#overlay { display: none; }
+
+/* 顶部 Header */
+.topbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border-bottom: 1px solid var(--border); z-index: 20; flex-shrink: 0; }
+.topbar-title { flex: 1; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.icon-btn { width: 36px; height: 36px; border-radius: 11px; background: rgba(120,120,128,.1); font-size: 17px; color: var(--text-color); display: flex; align-items: center; justify-content: center; }
+#menuBtn { display: none; }
+
+/* ==================== 聊天区 ==================== */
+.chat-scroll { flex: 1; overflow-y: auto; min-height: 0; padding: 16px 14px 20px; z-index: 2; }
+.chat-scroll-inner, .debate-scroll-inner { max-width: 860px; margin: 0 auto; width: 100%; }
+.msg { display: flex; margin: 10px 0; }
+.msg.user { justify-content: flex-end; }
+.msg.user .bubble { background: var(--bubble-user); color: #f8fafc; border-radius: 18px 18px 6px 18px; padding: 11px 14px; max-width: 82%; font-size: 15px; line-height: 1.6; position: relative; z-index: 2; }
+.msg.assistant .bubble { background: var(--bubble-ai); color: var(--text-color); border: 1px solid var(--border); border-radius: 18px 18px 18px 6px; padding: 12px 14px 8px; max-width: 90%; box-shadow: var(--card-shadow); position: relative; z-index: 2; }
+.msg-model { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+.md { font-size: 15px; line-height: 1.7; }
+.md pre { background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; font-size: 13px; font-family: monospace; }
+.md code { background: rgba(120,120,128,.15); padding: 2px 6px; border-radius: 6px; font-size: .9em; color: #c2410c; }
+body.dark .md code { color: #fca5a5; }
+
+/* 智能滚动按钮 */
+.down-btn { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%) translateY(8px); z-index: 15; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--glass); color: var(--text-color); font-size: 17px; box-shadow: 0 6px 20px rgba(0,0,0,.14); opacity: 0; pointer-events: none; transition: .22s; display: flex; align-items: center; justify-content: center; }
+.down-btn.show { opacity: .92; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+
+/* 输入区 */
+.inputbar { flex-shrink: 0; padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border-top: 1px solid var(--border); z-index: 10; }
+.strength-bar { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; }
+.strength-btn { flex: 1; max-width: 70px; padding: 6px 0; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--text-muted); background: rgba(120,120,128,.1); border: 1px solid transparent; transition: all 0.3s; }
+.strength-btn.active { color: #fff; background: var(--accent); box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.strength-btn[data-val="vlow"].active { background: #3b82f6; }
+.strength-btn[data-val="low"].active { background: #0ea5e9; }
+.strength-btn[data-val="mid"].active { background: #10b981; }
+.strength-btn[data-val="high"].active { background: #f97316; }
+.strength-btn[data-val="ultra"].active { background: #8b5cf6; box-shadow: 0 0 15px rgba(139,92,246,0.5); }
+.input-row { display: flex; align-items: flex-end; gap: 8px; background: var(--bubble-ai); border: 1px solid var(--border); border-radius: 18px; padding: 7px 7px 7px 14px; box-shadow: var(--card-shadow); }
+#chatInput { flex: 1; border: none; background: transparent; font-size: 16px; line-height: 1.5; max-height: 140px; padding: 6px 0; color: var(--text-color); }
+.send-btn { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #5b7cfa, #8b5cf6); color: #fff; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+
+/* ==================== 辩论区 ==================== */
+.debate-scroll { flex: 1; overflow-y: auto; min-height: 0; padding: 14px 14px 24px; z-index: 2; }
+.card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--card-shadow); margin-bottom: 14px; padding: 16px; }
+.card h2 { font-size: 16px; margin-bottom: 6px; }
+.debate-config label { font-size: 12px; font-weight: 700; color: var(--text-muted); display: block; margin: 12px 0 6px; }
+.set-input { width: 100%; border: 1px solid var(--border); border-radius: 12px; padding: 10px; font-size: 15px; background: var(--bg-color); color: var(--text-color); margin-bottom: 8px; }
+.config-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.config-col { flex: 1; min-width: 140px; }
+.api-estimate { font-size: 12px; color: var(--accent); background: rgba(79,109,245,.1); padding: 6px 10px; border-radius: 8px; display: inline-block; margin-top: 8px; }
+.debate-card { background: var(--bubble-ai); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+.round-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.round-title { font-weight: 800; font-size: 14px; }
+.log-box { background: var(--bg-color); border: 1px dashed var(--border); padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; max-height: 200px; overflow-y: auto; }
+.ans { border: 1px solid var(--border); border-radius: 12px; padding: 11px; margin-bottom: 8px; background: var(--bg-color); }
+.ans-head { font-size: 12px; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+.ans-body { font-size: 13.5px; line-height: 1.7; }
+.fusion-card { margin: 18px 0; background: radial-gradient(120% 140% at 20% 0%, #3a2c12 0%, #17110a 100%); border: 1.5px solid #d4af37; border-radius: 20px; padding: 20px; color: #f7ecd0; }
+.fusion-head { font-size: 17px; font-weight: 800; color: #ffe9a8; display: flex; align-items: center; gap: 8px; }
+.fusion-meta { font-size: 11px; color: rgba(247,236,208,.6); margin: 4px 0 12px; }
+.fusion-body { font-size: 14px; line-height: 1.75; }
+.fusion-actions { display: flex; gap: 10px; margin-top: 15px; }
+.fusion-btn { flex: 1; padding: 10px; background: linear-gradient(135deg, #e8c15a, #b8912e); color: #241a05; font-weight: 800; border-radius: 10px; }
+
+/* ==================== 设置页 ==================== */
+.settings-scroll { flex: 1; overflow-y: auto; min-height: 0; padding: 16px 14px 24px; max-width: 640px; margin: 0 auto; width: 100%; z-index: 2; }
+.set-card h3 { font-size: 15px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+.set-card h3 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; }
+.set-card h3 .status-dot.ok { background: #10b981; box-shadow: 0 0 8px rgba(16,185,129,.4); }
+.set-card p { font-size: 12.5px; color: var(--text-muted); margin-bottom: 10px; }
+.set-btn { padding: 10px 16px; border-radius: 11px; background: rgba(79,109,245,.1); color: var(--accent); font-weight: 700; font-size: 13px; margin: 4px 8px 0 0; }
+.set-btn.danger { background: rgba(220,38,38,.08); color: #dc2626; }
+.test-btn { background: rgba(16,185,129,.1); color: #10b981; }
+
+/* ==================== 模型下拉分组 ==================== */
+.dd { position: relative; }
+.dd-btn { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--bubble-ai); font-size: 13px; font-weight: 700; color: var(--text-color); max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.dd-menu { position: absolute; top: calc(100% + 8px); right: 0; min-width: 260px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 36px rgba(0,0,0,.2); padding: 6px; z-index: 60; display: none; max-height: 400px; overflow-y: auto; }
+.dd-menu.open { display: block; animation: pop .16s ease; }
+.dd-group-title { font-size: 11px; font-weight: 800; color: var(--text-muted); padding: 10px 10px 4px; display: flex; align-items: center; gap: 6px; }
+.dd-group-title .g-dot { width: 6px; height: 6px; border-radius: 50%; background: #cbd5e1; }
+.dd-group-title .g-dot.ok { background: #10b981; }
+.dd-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px 10px 22px; border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--text-color); text-align: left; }
+.dd-item:hover { background: rgba(120,120,128,.1); }
+.dd-item.active { background: rgba(79,109,245,.1); color: var(--accent); }
+.dd-item.disabled { opacity: 0.4; cursor: not-allowed; }
+.dd-item .free-tag { font-size: 10px; background: #10b981; color: #fff; padding: 1px 4px; border-radius: 4px; margin-left: auto; }
+.dd-item .paid-tag { font-size: 10px; background: #f59e0b; color: #fff; padding: 1px 4px; border-radius: 4px; margin-left: auto; }
+
+/* ==================== 底部 Tab ==================== */
+.tabbar { display: flex; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--glass); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); z-index: 10; }
+.tabbar button { flex: 1; padding: 7px 0 6px; font-size: 11px; font-weight: 700; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.tabbar button.active { color: var(--accent); background: rgba(79,109,245,.08); border-radius: 12px; }
+@media (min-width: 768px) { .tabbar { display: none; } #menuBtn { display: flex; } }
+@media (max-width: 767px) {
+  #sidebar { position: fixed; top: 0; bottom: 0; left: 0; height: 100dvh; width: min(80vw, 300px); transform: translateX(-105%); transition: .28s; z-index: 100; background: var(--bg-color); }
+  #sidebar.open { transform: translateX(0); }
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 99; opacity: 0; pointer-events: none; transition: .25s; }
+  #overlay.show { opacity: 1; pointer-events: auto; }
+}
+
+/* === 悬浮助手 (原女仆) === */
+#floatAssistant { position: fixed; z-index: 70; width: 60px; height: 60px; cursor: grab; touch-action: none; }
+#floatAssistant.dragging { cursor: grabbing; }
+.assistant-ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, #ff9ec0, #7c8cff, #53e0c8, #ff9ec0); animation: ringSpin 6s linear infinite; box-shadow: 0 4px 15px rgba(79,109,245,.3); }
+.assistant-core { position: absolute; inset: 3px; border-radius: 50%; overflow: hidden; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+.assistant-bubble { position: absolute; right: -6px; bottom: calc(100% + 14px); width: 220px; background: #fff; border: 3px solid #16337a; border-radius: 16px; box-shadow: 6px 7px 0 rgba(22,51,122,.16); padding: 13px 14px; display: none; z-index: 3; color: #16337a; }
+.assistant-bubble.open { display: block; animation: pop .18s ease; }
+.assistant-bubble .arrow { position: absolute; bottom: -14px; right: 26px; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 14px solid #16337a; }
+.assistant-bubble .arrow::after { content: ''; position: absolute; left: -9px; top: -15px; border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 10px solid #fff; }
+.assistant-bubble.below { bottom: auto; top: calc(100% + 14px); }
+.assistant-bubble.below .arrow { bottom: auto; top: -14px; transform: rotate(180deg); }
+.assistant-bubble.align-left { right: auto; left: -6px; }
+.assistant-bubble.align-left .arrow { right: auto; left: 26px; }
+.assistant-bubble .fold { position: absolute; top: -3px; right: -3px; width: 20px; height: 20px; background: #e4eafc; clip-path: polygon(100% 0, 0 100%, 100% 100%); }
+.ab-head { font-weight: 800; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.ab-body { font-size: 12.5px; line-height: 1.6; color: #5b6d99; }
+.ab-body b { color: #16337a; font-size: 16px; display: block; margin-top: 4px; }
+
+#toast { position: fixed; left: 50%; bottom: 160px; transform: translateX(-50%) translateY(12px); background: rgba(17,24,39,.95); color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 13px; z-index: 90; opacity: 0; transition: .25s; pointer-events: none; max-width: 80%; text-align: center; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { transform: scale(.95); opacity: 0; } }
+@keyframes ringSpin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<canvas id="particleCanvas"></canvas>
+
+<div id="app">
+  <aside id="sidebar">
+    <div class="side-logo">
+      <div class="logo-mark">⚡</div>
+      <div><b>studioUltra</b><small>v13.1.1 粒子版</small></div>
+    </div>
+    <button id="newChatSideBtn" class="new-chat-btn">＋ 新建对话</button>
+    <div class="session-label">对话记录</div>
+    <div id="sessionList" class="session-list"></div>
+    <div class="side-nav">
+      <button id="navDebateBtn">⚔️ 多 Agent 辩论</button>
+      <button id="navSettingsBtn">⚙️ 设置</button>
+    </div>
+  </aside>
+  <div id="overlay"></div>
+
+  <div id="main">
+    <header class="topbar">
+      <button id="menuBtn" class="icon-btn">☰</button>
+      <div id="topbarTitle" class="topbar-title">新对话</div>
+      <button id="newChatBtn" class="icon-btn" title="新建对话">＋</button>
+      <div id="chatModelDD"></div>
+    </header>
+
+    <div id="chatView" class="view">
+      <div id="chatScroll" class="chat-scroll">
+        <div id="chatInner" class="chat-scroll-inner"></div>
+      </div>
+      <button id="downBtn" class="down-btn">↓</button>
+      
+      <div class="inputbar">
+        <div class="strength-bar" id="strengthBar">
+          <button class="strength-btn" data-val="vlow">极低</button>
+          <button class="strength-btn" data-val="low">低</button>
+          <button class="strength-btn active" data-val="mid">中</button>
+          <button class="strength-btn" data-val="high">高</button>
+          <button class="strength-btn" data-val="ultra">Ultra</button>
+        </div>
+
+        <div class="input-row">
+          <textarea id="chatInput" rows="1" placeholder="给 AI 发送消息…"></textarea>
+          <button id="sendBtn" class="send-btn">↑</button>
+          <button id="stopBtn" class="send-btn hidden" style="background:#1f2937;">■</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="debateView" class="view hidden">
+      <div id="debateScroll" class="debate-scroll">
+        <div id="debateInner" class="debate-scroll-inner">
+          <div class="card">
+            <h2>⚔️ 全自动辩论工作台</h2>
+            <label>辩题</label>
+            <textarea id="debateTopic" class="set-input" placeholder="输入辩题…" style="height:60px;"></textarea>
+            
+            <label>归档标签 (可选)</label>
+            <input id="debateTags" class="set-input" placeholder="例如: 科创论文 / 经济">
+            
+            <div class="config-row">
+              <div class="config-col"><label>选手 A 角色</label><input id="debateRoleA" class="set-input" value="正方"></div>
+              <div class="config-col"><label>选手 B 角色</label><input id="debateRoleB" class="set-input" value="反方"></div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-col"><label>选手 A 模型</label><div id="ddA"></div></div>
+              <div class="config-col"><label>选手 B 模型</label><div id="ddB"></div></div>
+            </div>
+
+            <div class="config-row">
+              <div class="config-col"><label>裁判模型</label><div id="ddJ"></div></div>
+              <div class="config-col">
+                <label>裁判风格模板</label>
+                <select id="debateJudgeStyle" class="set-input">
+                  <option value="academic">学术严谨版 (适合论文)</option>
+                  <option value="decision">决策权衡版 (适合商业)</option>
+                  <option value="review">审稿找茬版 (极严苛)</option>
+                </select>
+              </div>
+            </div>
+
+            <label>循环轮数 (及预估调用)</label>
+            <div class="round-picker" id="roundPicker" style="display:flex; gap:5px; margin-bottom:10px;">
+              <button data-r="1" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">1轮</button>
+              <button data-r="2" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">2轮</button>
+              <button data-r="3" style="flex:1; padding:8px; border:1px solid var(--border); border-radius:8px;">3轮</button>
+            </div>
+            <div class="api-estimate" id="apiEstimate">预计消耗：4 次 API 调用</div>
+
+            <button id="debateStartBtn" class="primary-btn" style="margin-top:15px; width:100%; padding:12px; background:var(--accent); color:#fff; border-radius:12px; font-weight:bold;">🚀 开始辩论</button>
+          </div>
+          <div id="debateOutput"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="settingsView" class="view hidden">
+      <div id="settingsScroll" class="settings-scroll">
+        <section class="card set-card">
+          <h3>🌙 外观设置</h3>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+            <span>深色模式</span>
+            <button id="toggleDarkMode" class="set-btn" style="margin:0;">切换主题</button>
+          </div>
+        </section>
+
+        <!-- === [v13.1.1] 悬浮助手自定义 === -->
+        <section class="card set-card">
+          <h3>✨ 悬浮助手设置</h3>
+          <p>自定义悬浮球的名字。点击悬浮球时，会显示此名字与 DeepSeek 余额。</p>
+          <div style="display:flex; gap:10px;">
+            <input id="assistantNameInput" class="set-input" type="text" placeholder="比如：小管家、AI助理..." style="margin:0; flex:1;">
+            <button id="saveAssistantNameBtn" class="set-btn" style="margin:0; white-space:nowrap;">保存名字</button>
+          </div>
+        </section>
+
+        <section class="card set-card">
+          <h3>🛠️ 高级设置</h3>
+          <p>当遇到网络波动或免费模型限流 (429) 时，系统自动重试的极限次数。</p>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+            <span style="font-size:14px;">自检重试次数:</span>
+            <input type="number" id="retryCountInput" class="set-input" style="width:80px; margin:0; text-align:center;" min="1" max="10" value="3">
+            <button id="saveRetryBtn" class="set-btn" style="margin:0;">保存</button>
+          </div>
+        </section>
+
+        <section class="card set-card">
+          <h3><span class="status-dot" id="dot-deepseek"></span> DeepSeek (付费)</h3>
+          <input id="apiKeyInput" class="set-input" type="password" placeholder="sk-...">
+          <button id="saveKeyBtn" class="set-btn">保存</button>
+          <button class="set-btn test-btn" onclick="testKey('deepseek')">🔍 测试有效性</button>
+        </section>
+
+        <section class="card set-card">
+          <h3><span class="status-dot" id="dot-zhipu"></span> 智谱 AI (有免费模型)</h3>
+          <input id="keyZhipuInput" class="set-input" type="password" placeholder="API Key">
+          <button id="saveKeyZhipuBtn" class="set-btn">保存</button>
+          <button class="set-btn test-btn" onclick="testKey('zhipu')">🔍 测试有效性</button>
+        </section>
+
+        <section class="card set-card">
+          <h3><span class="status-dot" id="dot-qwen"></span> 通义千问 (有免费额度)</h3>
+          <input id="keyQwenInput" class="set-input" type="password" placeholder="API Key">
+          <button id="saveKeyQwenBtn" class="set-btn">保存</button>
+          <button class="set-btn test-btn" onclick="testKey('qwen')">🔍 测试有效性</button>
+        </section>
+
+        <section class="card set-card">
+          <h3><span class="status-dot" id="dot-doubao"></span> 字节豆包 (自定义EP)</h3>
+          <input id="keyDoubaoInput" class="set-input" type="password" placeholder="API Key">
+          <input id="doubaoEndpointInput" class="set-input" type="text" placeholder="推理接入点 ID (ep-xxx)">
+          <button id="saveKeyDoubaoBtn" class="set-btn">保存</button>
+        </section>
+
+        <section class="card set-card" style="background:var(--bg-color);">
+          <h3 style="color:var(--accent);">📜 版本更新日志</h3>
+          <div style="font-size:12px; line-height:1.8; color:var(--text-muted); margin-top:10px;">
+            <b>v13.1.1 (当前版本)</b><br>
+            - 更名：正式更名为 studioUltra<br>
+            - 新增：支持自定义「悬浮助手」的名字<br>
+            - 新增：设置页支持自定义「自检重试次数」<br>
+            <br>
+            <b>v13.1.0</b><br>
+            - 新增：5档思考强度、全屏粒子变色引擎
+          </div>
+        </section>
+
+        <section class="card set-card">
+          <h3>🗂️ 数据管理</h3>
+          <button id="clearSessionsBtn" class="set-btn danger" style="margin-top:10px;">清空全部对话记录</button>
+        </section>
+      </div>
+    </div>
+
+    <nav class="tabbar">
+      <button data-view="chat" class="active">💬 对话</button>
+      <button data-view="debate">⚔️ 辩论</button>
+      <button data-view="settings">⚙️ 设置</button>
+    </nav>
+  </div>
+</div>
+
+<!-- 悬浮助手 -->
+<div id="floatAssistant">
+  <div class="assistant-bubble" id="assistantBubble">
+    <div class="fold"></div>
+    <div class="ab-head" id="assistantBubbleName">✨ 小助手</div>
+    <div class="ab-body">
+      DeepSeek 余额：<b id="balanceText">未配置</b>
+    </div>
+    <div class="arrow"></div>
+  </div>
+  <div class="assistant-ring"></div>
+  <div class="assistant-core">🤖</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+'use strict';
+
+/* =====================================================
+   === [粒子特效引擎] ===
+   ===================================================== */
+const canvas = document.getElementById('particleCanvas');
+const ctx = canvas.getContext('2d');
+let width, height, particles = [];
+let particleColor = '#10b981';
+let particleSpeed = 3;
+
+function resizeCanvas() {
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+class Particle {
+  constructor() { this.reset(); this.y = height + Math.random() * 100; }
+  reset() {
+    this.x = width / 2 + (Math.random() - 0.5) * width * 0.8;
+    this.y = height + 10;
+    this.vx = (Math.random() - 0.5) * 1.5;
+    this.vy = -(Math.random() * 2 + 1) * particleSpeed;
+    this.radius = Math.random() * 2 + 0.5;
+    this.alpha = Math.random() * 0.5 + 0.2;
+    this.life = 1;
+  }
+  update() {
+    this.x += this.vx; this.y += this.vy;
+    this.life -= 0.005;
+    if (this.life <= 0 || this.y < -10) this.reset();
+  }
+  draw() {
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = particleColor; ctx.globalAlpha = this.alpha * this.life;
+    ctx.fill(); ctx.globalAlpha = 1;
+  }
+}
+for (let i = 0; i < 60; i++) particles.push(new Particle());
+
+function animateParticles() {
+  ctx.clearRect(0, 0, width, height);
+  particles.forEach(p => { p.update(); p.draw(); });
+  requestAnimationFrame(animateParticles);
+}
+animateParticles();
+
+const STRENGTH_MAP = {
+  vlow: { color: '#3b82f6', speed: 1, effort: 'low' },
+  low:  { color: '#0ea5e9', speed: 2, effort: 'low' },
+  mid:  { color: '#10b981', speed: 3.5, effort: 'medium' },
+  high: { color: '#f97316', speed: 5, effort: 'high' },
+  ultra:{ color: '#8b5cf6', speed: 8, effort: 'high' }
+};
+let currentStrength = 'mid';
+
+document.querySelectorAll('.strength-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.strength-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentStrength = btn.dataset.val;
+    const cfg = STRENGTH_MAP[currentStrength];
+    particleColor = cfg.color;
+    particleSpeed = cfg.speed;
+    particles.forEach(p => { p.vy = -(Math.random() * 2 + 1) * particleSpeed; });
+    if (currentStrength === 'ultra') showToast('⚡ Ultra 模式已开启');
+  };
+});
+
+/* =====================================================
+   === [API 与业务逻辑] ===
+   ===================================================== */
+const API_CONFIG = {
+  deepseek: { url: 'https://api.deepseek.com/chat/completions', keyLS: 'autoPro_key_deepseek', name: 'DeepSeek' },
+  zhipu: { url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', keyLS: 'autoPro_key_zhipu', name: '智谱' },
+  qwen: { url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', keyLS: 'autoPro_key_qwen', name: '千问' },
+  doubao: { url: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions', keyLS: 'autoPro_key_doubao', name: '豆包' }
+};
+
+const MODELS = [
+  { id: 'deepseek-v4-pro',  p: 'deepseek', name: 'V4 Pro',   isFree: false, temp: 0.7 },
+  { id: 'deepseek-flash',   p: 'deepseek', name: 'V4 Flash', isFree: false, temp: 0.7 },
+  { id: 'deepseek-reasoner',p: 'deepseek', name: 'R1',       isFree: false, temp: 0.5 },
+  { id: 'deepseek-chat',    p: 'deepseek', name: 'V3',       isFree: false, temp: 0.7 },
+  { id: 'zhipu:glm-4-flash',p: 'zhipu',    name: 'GLM-4-Flash', isFree: true, temp: 0.7 },
+  { id: 'zhipu:glm-4-plus', p: 'zhipu',    name: 'GLM-4-Plus',  isFree: false, temp: 0.7 },
+  { id: 'qwen:qwen-turbo',  p: 'qwen',     name: 'Qwen-Turbo', isFree: true, temp: 0.7 },
+  { id: 'qwen:qwen-max',    p: 'qwen',     name: 'Qwen-Max',   isFree: false, temp: 0.7 },
+  { id: 'doubao:default',   p: 'doubao',   name: '豆包',       isFree: false, temp: 0.7 }
+];
+
+const JUDGE_TEMPLATES = {
+  academic: '你是一名学术委员会主席。请严格审视双方论据，指出理论漏洞、逻辑谬误，并给出如何提升学术严谨性的修改建议。',
+  decision: '你是一名企业战略顾问。请权衡双方观点的商业价值与落地风险，指出可行性上的优缺点，并给出务实的决策建议。',
+  review: '你是一本顶刊的匿名审稿人。请极度挑剔、毫不留情地找茬，指出所有论证薄弱、数据缺失的地方，并给出严苛的修改意见。'
+};
+
+let sessions = JSON.parse(localStorage.getItem('autoPro_sessions') || '[]');
+let currentId = localStorage.getItem('autoPro_current');
+let currentView = 'chat';
+let chatModel = 'deepseek-v4-pro';
+let streaming = false;
+let chatAborter = null;
+let debateCfg = JSON.parse(localStorage.getItem('autoPro_debateCfg') || '{"a":"deepseek-v4-pro","b":"zhipu:glm-4-flash","j":"deepseek-reasoner","rounds":1}');
+
+const $ = id => document.getElementById(id);
+const getKey = p => (localStorage.getItem(API_CONFIG[p].keyLS) || '').trim();
+const escapeHtml = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const modelById = id => MODELS.find(m => m.id === id) || MODELS[0];
+const timeAgo = ts => { let d = new Date(ts), now = new Date(); if(d.toDateString()===now.toDateString()) return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0'); return (d.getMonth()+1)+'/'+d.getDate(); };
+
+let toastTimer;
+function showToast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2500); }
+
+function renderMarkdown(src) {
+  let blocks = [];
+  src = String(src || '').replace(/```([\w-]*)\n?([\s\S]*?)```/g, (m, l, c) => { blocks.push('<pre><code>' + escapeHtml(c) + '</code></pre>'); return `\u0000B${blocks.length-1}\u0000`; });
+  let html = escapeHtml(src).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+  return html.replace(/\u0000B(\d+)\u0000/g, (m, i) => blocks[i]);
+}
+
+// 初始化重试次数
+let retryLimit = parseInt(localStorage.getItem('autoPro_retryCount') || '3', 10);
+$('retryCountInput').value = retryLimit;
+$('saveRetryBtn').onclick = () => {
+  let v = parseInt($('retryCountInput').value, 10);
+  if (isNaN(v) || v < 1 || v > 10) return showToast('请输入 1-10 之间的数字');
+  retryLimit = v;
+  localStorage.setItem('autoPro_retryCount', retryLimit);
+  showToast('自检次数已保存');
+};
+
+const isDark = localStorage.getItem('autoPro_dark') === 'true';
+if (isDark) document.body.classList.add('dark');
+$('toggleDarkMode').onclick = () => {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('autoPro_dark', document.body.classList.contains('dark'));
+};
+
+function checkProviderStatus() {
+  for (let p in API_CONFIG) {
+    let ok = !!getKey(p);
+    let dot = $('dot-' + p);
+    if (dot) dot.classList.toggle('ok', ok);
+  }
+}
+
+function renderSessions() {
+  const list = $('sessionList'); list.innerHTML = '';
+  if (!sessions.length) { list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">暂无对话</div>'; return; }
+  sessions.forEach(s => {
+    let el = document.createElement('div');
+    el.className = 'sess-item' + (s.id === currentId ? ' active' : '');
+    el.innerHTML = `<div style="flex:1; overflow:hidden;"><div class="sess-title">${escapeHtml(s.title)}${s.tags ? `<span class="sess-tag">${escapeHtml(s.tags)}</span>` : ''}</div><div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${escapeHtml(modelById(s.model).name)} · ${timeAgo(s.ts)}</div></div><button class="sess-del">✕</button>`;
+    el.onclick = e => { if (!e.target.closest('.sess-del')) openSession(s.id); };
+    el.querySelector('.sess-del').onclick = e => { e.stopPropagation(); deleteSession(s.id); };
+    list.appendChild(el);
+  });
+}
+
+function deleteSession(id) {
+  if (!confirm('删除这个对话？')) return;
+  sessions = sessions.filter(s => s.id !== id);
+  if (currentId === id) currentId = sessions.length ? sessions[0].id : null;
+  localStorage.setItem('autoPro_sessions', JSON.stringify(sessions));
+  localStorage.setItem('autoPro_current', currentId || '');
+  renderSessions(); renderChat();
+}
+
+function openSession(id) {
+  currentId = id;
+  let s = sessions.find(x => x.id === id);
+  if (s) chatModel = s.model;
+  localStorage.setItem('autoPro_current', id);
+  renderSessions(); renderChat(); closeDrawer();
+  if (currentView !== 'chat') switchView('chat');
+}
+
+function newSession() {
+  let cur = sessions.find(x => x.id === currentId);
+  if (cur && cur.messages.length === 0) return;
+  let s = { id: Date.now().toString(36), title: '新对话', model: chatModel, messages: [], ts: Date.now() };
+  sessions.unshift(s); currentId = s.id;
+  localStorage.setItem('autoPro_sessions', JSON.stringify(sessions));
+  localStorage.setItem('autoPro_current', currentId);
+  renderSessions(); renderChat(); switchView('chat');
+}
+
+function renderChat() {
+  const inner = $('chatInner'); inner.innerHTML = '';
+  const s = sessions.find(x => x.id === currentId);
+  if (!s || !s.messages.length) {
+    inner.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text-muted);"><h2 style="font-size:22px;color:var(--text-color);margin-bottom:10px;">studioUltra</h2><p>v13.1.1 粒子版 · 全自动闭环</p></div>`;
+    $('topbarTitle').textContent = '新对话'; return;
+  }
+  $('topbarTitle').textContent = s.title;
+  s.messages.forEach(m => {
+    let wrap = document.createElement('div'); wrap.className = 'msg ' + m.role;
+    if (m.role === 'user') {
+      wrap.innerHTML = `<div class="bubble">${escapeHtml(m.content).replace(/\n/g,'<br>')}</div>`;
+    } else {
+      wrap.innerHTML = `<div class="bubble"><div class="msg-model"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);"></span>${modelById(m.model).name}</div><div class="md">${renderMarkdown(m.content)}</div></div>`;
+    }
+    inner.appendChild(wrap);
+  });
+  $('chatScroll').scrollTop = $('chatScroll').scrollHeight;
+}
+
+function switchView(v) {
+  currentView = v;
+  $('chatView').classList.toggle('hidden', v !== 'chat');
+  $('debateView').classList.toggle('hidden', v !== 'debate');
+  $('settingsView').classList.toggle('hidden', v !== 'settings');
+  document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  $('navDebateBtn').classList.toggle('active', v === 'debate');
+  $('navSettingsBtn').classList.toggle('active', v === 'settings');
+  if (v === 'settings') checkProviderStatus();
+  closeDrawer();
+}
+
+function closeAllDropdowns() { document.querySelectorAll('.dd-menu.open').forEach(m => m.classList.remove('open')); }
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.dd')) closeAllDropdowns(); });
+
+function createDropdown(container, initial, onChange) {
+  let wrap = document.createElement('div'); wrap.className = 'dd';
+  let btn = document.createElement('button'); btn.className = 'dd-btn';
+  let menu = document.createElement('div'); menu.className = 'dd-menu';
+  let val = initial;
+
+  function buildMenu() {
+    menu.innerHTML = '';
+    let grouped = {};
+    MODELS.forEach(m => { if(!grouped[m.p]) grouped[m.p] = []; grouped[m.p].push(m); });
+
+    for (let p in grouped) {
+      let info = API_CONFIG[p];
+      let hasKey = !!getKey(p);
+      let title = document.createElement('div'); title.className = 'dd-group-title';
+      title.innerHTML = `<span class="g-dot ${hasKey?'ok':''}"></span> ${info.name}`;
+      menu.appendChild(title);
+
+      grouped[p].forEach(m => {
+        let it = document.createElement('button');
+        it.className = 'dd-item' + (val === m.id ? ' active' : '') + (!hasKey ? ' disabled' : '');
+        let tagHtml = m.isFree ? `<span class="free-tag">🆓免费</span>` : `<span class="paid-tag">💰付费</span>`;
+        it.innerHTML = `<span>${m.name}</span>${tagHtml}`;
+        it.onclick = (e) => {
+          e.stopPropagation();
+          if (!hasKey) return showToast(`请先在设置中配置 ${info.name} Key`);
+          if (val !== m.id) { val = m.id; onChange(m); }
+          sync(); closeAllDropdowns();
+        };
+        menu.appendChild(it);
+      });
+    }
+  }
+
+  function sync() {
+    let cur = modelById(val);
+    btn.innerHTML = `<span>${cur.name}</span><span class="free-tag" style="margin-left:6px;font-size:9px;background:${cur.isFree?'#10b981':'#f59e0b'}">${cur.isFree?'🆓':'💰'}</span>`;
+  }
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    let willOpen = !menu.classList.contains('open');
+    closeAllDropdowns();
+    if (willOpen) { buildMenu(); menu.classList.add('open'); }
+  };
+
+  wrap.appendChild(btn); wrap.appendChild(menu); container.appendChild(wrap); sync();
+  return { get: () => val, set: v => { val = v; sync(); } };
+}
+
+/* =====================================================
+   === [悬浮助手] 名字、拖拽、余额查询 ===
+   ===================================================== */
+const floatAssistant = $('floatAssistant');
+const assistantBubble = $('assistantBubble');
+const assistantBubbleName = $('assistantBubbleName');
+const balanceText = $('balanceText');
+
+let assistantName = localStorage.getItem('autoPro_assistantName') || '小助手';
+assistantBubbleName.textContent = `✨ ${assistantName}`;
+$('assistantNameInput').value = assistantName;
+
+$('saveAssistantNameBtn').onclick = () => {
+  let v = $('assistantNameInput').value.trim();
+  if (!v) return showToast('名字不能为空');
+  assistantName = v;
+  localStorage.setItem('autoPro_assistantName', v);
+  assistantBubbleName.textContent = `✨ ${assistantName}`;
+  showToast('悬浮助手名字已更新');
+};
+
+let dragState = null;
+floatAssistant.addEventListener('pointerdown', e => {
+  dragState = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: floatAssistant.offsetLeft, oy: floatAssistant.offsetTop, moved: false };
+  floatAssistant.classList.add('dragging');
+  if (assistantBubble.classList.contains('open')) assistantBubble.classList.remove('open');
+  try { floatAssistant.setPointerCapture(e.pointerId); } catch (err) {}
+});
+floatAssistant.addEventListener('pointermove', e => {
+  if (!dragState || e.pointerId !== dragState.id) return;
+  let dx = e.clientX - dragState.sx, dy = e.clientY - dragState.sy;
+  if (Math.abs(dx) > 6 || Math.abs(dy) > 6) dragState.moved = true;
+  if (dragState.moved) {
+    floatAssistant.style.left = Math.min(Math.max(dragState.ox + dx, 6), window.innerWidth - 60) + 'px';
+    floatAssistant.style.top = Math.min(Math.max(dragState.oy + dy, 6), window.innerHeight - 60) + 'px';
+  }
+});
+floatAssistant.addEventListener('pointerup', e => {
+  if (!dragState || e.pointerId !== dragState.id) return;
+  let moved = dragState.moved; dragState = null; floatAssistant.classList.remove('dragging');
+  if (moved) return;
+  // 点击展开气泡
+  let willOpen = !assistantBubble.classList.contains('open');
+  assistantBubble.classList.toggle('open', willOpen);
+  if (willOpen) {
+    // 气泡定位防遮挡
+    let rect = floatAssistant.getBoundingClientRect();
+    assistantBubble.classList.toggle('below', rect.top < 200);
+    assistantBubble.classList.toggle('align-left', rect.left < 150);
+    
+    // 查余额
+    let key = getKey('deepseek');
+    if (!key) { balanceText.textContent = '未配置 DeepSeek Key'; return; }
+    balanceText.textContent = '正在查询...';
+    fetch('https://api.deepseek.com/user/balance', { headers: { 'Authorization': 'Bearer ' + key } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.is_available && d.balance_infos.length) balanceText.textContent = '¥ ' + d.balance_infos[0].total_balance;
+        else balanceText.textContent = '暂无余额';
+      }).catch(() => balanceText.textContent = '查询失败');
+  }
+});
+document.addEventListener('pointerdown', e => {
+  if (!floatAssistant.contains(e.target) && assistantBubble.classList.contains('open')) assistantBubble.classList.remove('open');
+});
+// 初始化悬浮球位置
+floatAssistant.style.left = (window.innerWidth - 76) + 'px';
+floatAssistant.style.top = (window.innerHeight - 190) + 'px';
+
+/* =====================================================
+   === [核心请求] API 路由与自检 ===
+   ===================================================== */
+async function streamCompletion(opts) {
+  let modelId = opts.model;
+  let p = 'deepseek';
+  if (modelId.startsWith('zhipu:')) p = 'zhipu';
+  else if (modelId.startsWith('qwen:')) p = 'qwen';
+  else if (modelId.startsWith('doubao:')) p = 'doubao';
+
+  let modelName = modelId.includes(':') ? modelId.split(':')[1] : modelId;
+  if (p === 'doubao') modelName = localStorage.getItem('autoPro_doubao_ep') || 'default';
+
+  let key = getKey(p);
+  if (!key) throw new Error(`未配置 ${API_CONFIG[p].name} 的 Key`);
+
+  let maxRetries = retryLimit;
+  let retryCount = 0;
+  let fetchOpts = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({ 
+      model: modelName, 
+      messages: opts.messages, 
+      stream: true,
+      temperature: modelById(modelId).temp || 0.7,
+      reasoning_effort: STRENGTH_MAP[currentStrength].effort
+    }),
+    signal: opts.signal
+  };
+
+  while (retryCount <= maxRetries) {
+    try {
+      let res = await fetch(API_CONFIG[p].url, fetchOpts);
+      
+      if (res.status === 429) {
+        if (retryCount < maxRetries) {
+          retryCount++;
+          showToast(`限流 429，${retryCount * 2}秒后重试 (${retryCount}/${maxRetries})...`);
+          await new Promise(r => setTimeout(r, 2000 * retryCount));
+          continue;
+        } else throw new Error('触发限流 429，请稍后再试或切换免费模型');
+      }
+      if (res.status === 401 || res.status === 403) throw new Error('Key 无效或权限不足');
+      if (res.status === 402) throw new Error('账户余额不足');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      let reader = res.body.getReader();
+      let decoder = new TextDecoder();
+      let buf = '', full = '';
+      while (true) {
+        let { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          let line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
+          if (line.startsWith('data:')) {
+            let data = line.slice(5).trim();
+            if (data === '[DONE]') continue;
+            try {
+              let json = JSON.parse(data);
+              let delta = json.choices?.[0]?.delta?.content || '';
+              if (delta) { full += delta; opts.onDelta && opts.onDelta(delta, full); }
+            } catch(e){}
+          }
+        }
+      }
+      return full;
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+      if (retryCount >= maxRetries) {
+        if (e.message.includes('429')) throw new Error('免费模型限流严重，建议切换');
+        if (e.name === 'TypeError') throw new Error('网络超时或跨域失败');
+        throw e;
+      }
+      retryCount++;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+
+async function sendMessage() {
+  let text = $('chatInput').value.trim(); if (!text || streaming) return;
+  let p = modelById(chatModel).p;
+  if (!getKey(p)) return showToast(`请先配置 ${API_CONFIG[p].name} Key`);
+
+  let s = sessions.find(x => x.id === currentId);
+  if (!s) { s = { id: Date.now().toString(36), title: text.slice(0,10), model: chatModel, messages: [], ts: Date.now() }; sessions.unshift(s); currentId = s.id; }
+  s.messages.push({ role: 'user', content: text });
+  let aiMsg = { role: 'assistant', content: '', model: chatModel };
+  s.messages.push(aiMsg);
+  localStorage.setItem('autoPro_sessions', JSON.stringify(sessions));
+
+  $('chatInput').value = ''; $('chatInput').style.height = 'auto';
+  streaming = true; $('sendBtn').classList.add('hidden'); $('stopBtn').classList.remove('hidden');
+  renderChat(); renderSessions();
+
+  let mdEl = $('chatInner').querySelector('.msg.assistant:last-child .md');
+  let history = s.messages.filter(m => m !== aiMsg).map(m => ({ role: m.role, content: m.content }));
+  let full = '';
+
+  chatAborter = new AbortController();
+  try {
+    await streamCompletion({
+      messages: history, model: chatModel, signal: chatAborter.signal,
+      onDelta: (d, f) => { full = f; if(mdEl) mdEl.innerHTML = renderMarkdown(full); if($('chatScroll').scrollHeight - $('chatScroll').scrollTop - $('chatScroll').clientHeight < 100) $('chatScroll').scrollTop = $('chatScroll').scrollHeight; }
+    });
+    aiMsg.content = full;
+  } catch (e) {
+    aiMsg.content = `⚠️ 请求异常：${e.message}`;
+    if(mdEl) mdEl.innerHTML = `<div style="color:#ef4444">${aiMsg.content}</div>`;
+  } finally {
+    streaming = false; $('sendBtn').classList.remove('hidden'); $('stopBtn').classList.add('hidden');
+    localStorage.setItem('autoPro_sessions', JSON.stringify(sessions));
+  }
+}
+
+function updateEstimate() {
+  let rounds = debateCfg.rounds;
+  let count = rounds * 3 + 1;
+  $('apiEstimate').textContent = `预计消耗：${count} 次 API 调用`;
+}
+
+async function startDebate() {
+  let topic = $('debateTopic').value.trim();
+  if (!topic) return showToast('请输入辩题');
+  let roleA = $('debateRoleA').value.trim() || '正方';
+  let roleB = $('debateRoleB').value.trim() || '反方';
+  let style = $('debateJudgeStyle').value;
+  let tags = $('debateTags').value.trim();
+
+  let needP = [modelById(debateCfg.a).p, modelById(debateCfg.b).p, modelById(debateCfg.j).p];
+  for (let p of needP) if (!getKey(p)) return showToast(`请先配置 ${API_CONFIG[p].name} Key`);
+
+  let s = { id: Date.now().toString(36), title: `辩论: ${topic.slice(0,8)}...`, tags: tags, model: debateCfg.a, messages: [], ts: Date.now(), isDebate: true };
+  sessions.unshift(s); currentId = s.id; localStorage.setItem('autoPro_sessions', JSON.stringify(sessions)); renderSessions();
+
+  $('debateStartBtn').disabled = true; $('debateStartBtn').textContent = '辩论进行中...';
+  let output = $('debateOutput'); output.innerHTML = '';
+  
+  let logHtml = `<div class="log-box" id="realtimeLog">[系统] 辩论初始化... 角色: ${roleA} vs ${roleB}，裁判风格: ${style}</div>`;
+  output.innerHTML = logHtml;
+  let logEl = $('realtimeLog');
+  const log = (msg) => { logEl.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${msg}`; logEl.scrollTop = logEl.scrollHeight; };
+
+  let finalA = '', finalB = '', lastJudge = '';
+  let judgeSystemPrompt = JUDGE_TEMPLATES[style] || JUDGE_TEMPLATES.academic;
+
+  for (let r = 1; r <= debateCfg.rounds; r++) {
+    log(`--- 第 ${r} 轮开始 ---`);
+    let card = document.createElement('div'); card.className = 'debate-card';
+    card.innerHTML = `<div class="round-head"><span class="round-title">第 ${r} 轮</span><span style="font-size:11px;">${modelById(debateCfg.a).name} vs ${modelById(debateCfg.b).name}</span></div><div class="ans ans-a"><div class="ans-head">🗡️ ${roleA}</div><div class="ans-body">思考中...</div></div><div class="ans ans-b"><div class="ans-head">🛡️ ${roleB}</div><div class="ans-body">思考中...</div></div><div class="ans ans-judge"><div class="ans-head">⚖️ 裁判点评</div><div class="ans-body">等待...</div></div>`;
+    output.appendChild(card);
+
+    let pA = r === 1 ? `问题：${topic}\n你的角色：${roleA}。请给出立场鲜明的回答。` : `上一轮点评：${lastJudge}\n请改进你的回答。`;
+    let pB = r === 1 ? `问题：${topic}\n你的角色：${roleB}。请给出立场鲜明的回答。` : `上一轮点评：${lastJudge}\n请改进你的回答。`;
+
+    log(`请求 ${modelById(debateCfg.a).name} (${roleA})...`);
+    log(`请求 ${modelById(debateCfg.b).name} (${roleB})...`);
+    
+    let ansA_el = card.querySelector('.ans-a .ans-body');
+    let ansB_el = card.querySelector('.ans-b .ans-body');
+    
+    try {
+      let [resA, resB] = await Promise.all([
+        streamCompletion({ model: debateCfg.a, messages: [{role:'user', content: pA}], onDelta: (d,f) => ansA_el.innerHTML = renderMarkdown(f) }),
+        streamCompletion({ model: debateCfg.b, messages: [{role:'user', content: pB}], onDelta: (d,f) => ansB_el.innerHTML = renderMarkdown(f) })
+      ]);
+      finalA = resA; finalB = resB;
+      ansA_el.innerHTML = renderMarkdown(resA); ansB_el.innerHTML = renderMarkdown(resB);
+      log(`双方作答完毕，请求裁判...`);
+    } catch (e) {
+      log(`请求出错: ${e.message}`); break;
+    }
+
+    let judgePrompt = `辩题：${topic}\n\n【选手A - ${roleA}】\n${finalA}\n\n【选手B - ${roleB}】\n${finalB}\n\n请指出双方优缺点并给出修改建议。`;
+    let ansJ_el = card.querySelector('.ans-judge .ans-body');
+    try {
+      lastJudge = await streamCompletion({ model: debateCfg.j, messages: [{role:'system', content: judgeSystemPrompt}, {role:'user', content: judgePrompt}], onDelta: (d,f) => ansJ_el.innerHTML = renderMarkdown(f) });
+      ansJ_el.innerHTML = renderMarkdown(lastJudge);
+      log(`裁判点评完毕。`);
+    } catch(e) { log(`裁判请求失败: ${e.message}`); break; }
+  }
+
+  log(`开始终极融合...`);
+  let fusionCard = document.createElement('div'); fusionCard.className = 'fusion-card';
+  fusionCard.innerHTML = `<div class="fusion-head">👑 终极融合总结</div><div class="fusion-body" id="fusionBody">正在融合...</div><div class="fusion-actions"><button class="fusion-btn" id="btnExport">📥 导出 Markdown</button></div>`;
+  output.appendChild(fusionCard);
+
+  let fusionPrompt = `综合以下辩论内容，提取双方优点，生成一个最完美的终极结论：\nA(${roleA}): ${finalA}\nB(${roleB}): ${finalB}\n裁判意见: ${lastJudge}`;
+  try {
+    let fusionRes = await streamCompletion({ model: debateCfg.j, messages: [{role:'user', content: fusionPrompt}], onDelta: (d,f) => $('fusionBody').innerHTML = renderMarkdown(f) });
+    $('fusionBody').innerHTML = renderMarkdown(fusionRes);
+    log(`融合完成！`);
+    
+    $('btnExport').onclick = () => {
+      let md = `# 辩论报告：${topic}\n\n标签：${tags}\n角色A：${roleA}\n角色B：${roleB}\n\n`;
+      s.messages.push({role:'user', content: md});
+      let blob = new Blob([md + `## 最终结论\n${fusionRes}`], {type: 'text/markdown'});
+      let a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `debate_${Date.now()}.md`; a.click();
+    };
+  } catch(e) { log(`融合失败: ${e.message}`); }
+
+  $('debateStartBtn').disabled = false; $('debateStartBtn').textContent = '🚀 开始辩论';
+}
+
+async function testKey(p) {
+  let key = getKey(p);
+  if (!key) return showToast('请先填写并保存 Key');
+  showToast('正在测试连通性...');
+  try {
+    let res = await fetch(API_CONFIG[p].url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: MODELS.find(m => m.p === p).id.split(':')[1] || 'default', messages: [{role:'user', content:'Hi'}], max_tokens: 1 })
+    });
+    if (res.status === 401) throw new Error('认证失败：Key 无效');
+    if (res.status === 429) throw new Error('连通，但触发限流');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    showToast('✅ Key 有效，测试通过！');
+  } catch(e) { showToast(`❌ 测试失败: ${e.message}`); }
+}
+window.testKey = testKey;
+
+function closeDrawer() { $('sidebar').classList.remove('open'); $('overlay').classList.remove('show'); }
+$('menuBtn').onclick = () => { $('sidebar').classList.add('open'); $('overlay').classList.add('show'); };
+$('overlay').onclick = closeDrawer;
+$('newChatSideBtn').onclick = newSession; $('newChatBtn').onclick = newSession;
+$('navDebateBtn').onclick = () => switchView('debate');
+$('navSettingsBtn').onclick = () => switchView('settings');
+document.querySelectorAll('.tabbar button').forEach(b => b.onclick = () => switchView(b.dataset.view));
+
+$('sendBtn').onclick = sendMessage;
+$('stopBtn').onclick = () => { if (chatAborter) chatAborter.abort(); };
+$('chatInput').oninput = function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 140) + 'px'; };
+
+document.querySelectorAll('#roundPicker button').forEach(b => b.onclick = () => {
+  debateCfg.rounds = Number(b.dataset.r);
+  document.querySelectorAll('#roundPicker button').forEach(x => x.style.background = 'transparent');
+  b.style.background = 'rgba(79,109,245,.1)';
+  localStorage.setItem('autoPro_debateCfg', JSON.stringify(debateCfg));
+  updateEstimate();
+});
+document.querySelector(`#roundPicker button[data-r="${debateCfg.rounds}"]`).click();
+
+$('saveKeyBtn').onclick = () => { localStorage.setItem('autoPro_key_deepseek', $('apiKeyInput').value.trim()); checkProviderStatus(); showToast('已保存'); };
+$('saveKeyZhipuBtn').onclick = () => { localStorage.setItem('autoPro_key_zhipu', $('keyZhipuInput').value.trim()); checkProviderStatus(); showToast('已保存'); };
+$('saveKeyQwenBtn').onclick = () => { localStorage.setItem('autoPro_key_qwen', $('keyQwenInput').value.trim()); checkProviderStatus(); showToast('已保存'); };
+$('saveKeyDoubaoBtn').onclick = () => { localStorage.setItem('autoPro_key_doubao', $('keyDoubaoInput').value.trim()); localStorage.setItem('autoPro_doubao_ep', $('doubaoEndpointInput').value.trim()); checkProviderStatus(); showToast('已保存'); };
+
+createDropdown($('chatModelDD'), chatModel, m => { chatModel = m.id; });
+createDropdown($('ddA'), debateCfg.a, m => { debateCfg.a = m.id; localStorage.setItem('autoPro_debateCfg', JSON.stringify(debateCfg)); });
+createDropdown($('ddB'), debateCfg.b, m => { debateCfg.b = m.id; localStorage.setItem('autoPro_debateCfg', JSON.stringify(debateCfg)); });
+createDropdown($('ddJ'), debateCfg.j, m => { debateCfg.j = m.id; localStorage.setItem('autoPro_debateCfg', JSON.stringify(debateCfg)); });
+
+$('debateStartBtn').onclick = startDebate;
+$('clearSessionsBtn').onclick = () => { if(confirm('确定清空所有对话？')) { sessions = []; currentId = null; localStorage.setItem('autoPro_sessions','[]'); renderSessions(); renderChat(); } };
+
+$('apiKeyInput').value = getKey('deepseek');
+$('keyZhipuInput').value = getKey('zhipu');
+$('keyQwenInput').value = getKey('qwen');
+$('keyDoubaoInput').value = getKey('doubao');
+$('doubaoEndpointInput').value = localStorage.getItem('autoPro_doubao_ep') || '';
+
+checkProviderStatus();
+if (!currentId || !sessions.find(x=>x.id===currentId)) currentId = sessions.length ? sessions[0].id : null;
+renderSessions(); renderChat(); switchView('chat');
+
+})();
+</script>
+</body>
+</html>
